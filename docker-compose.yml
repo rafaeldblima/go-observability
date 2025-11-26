@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # Zipkin for distributed tracing
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    environment:
+      - STORAGE_TYPE=mem
+    networks:
+      - observability-network
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics
+      - "8889:8889"   # Prometheus exporter metrics
+    depends_on:
+      - zipkin
+    networks:
+      - observability-network
+
+  # Service A - Input validation and forwarding
+  service-a:
+    build:
+      context: ./service-a
+      dockerfile: Dockerfile
+    container_name: service-a
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - SERVICE_B_URL=http://service-b:8081
+      - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
+      - OTEL_EXPORTER_ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      - zipkin
+      - service-b
+    networks:
+      - observability-network
+
+  # Service B - CEP lookup and weather orchestration
+  service-b:
+    build:
+      context: ./service-b
+      dockerfile: Dockerfile
+    container_name: service-b
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
+      - OTEL_EXPORTER_ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+      - WEATHER_API_KEY=${WEATHER_API_KEY:-demo_key}
+    depends_on:
+      - zipkin
+    networks:
+      - observability-network
+
+networks:
+  observability-network:
+    driver: bridge

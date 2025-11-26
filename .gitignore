@@ -1,0 +1,22 @@
+# Binários
+stress-test
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Arquivos de teste
+*.test
+*.out
+
+# IDEs e editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Go
+vendor/
